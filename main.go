@@ -91,16 +91,47 @@ func makeFile(s string) (*os.File, error) {
 	return file, nil
 }
 
-func main() {
-	f, err := fileName(website)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(f)
-	err = writeToFile(website, f)
+func findBranches(s, master string) {
+	doc, _ := goquery.NewDocument(s)
+	doc.Find("a[href]").Each(func(index int, item *goquery.Selection) {
+		href, _ := item.Attr("href")
+		if _, err := os.Stat(href); os.IsNotExist(err) {
+
+			link := master + href
+			// f, err := fileName(website)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			log.Printf("Downloading %s into file %s\n", link, href)
+			err := writeToFile(link, href)
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println("Finished")
+			_ = findAllImages(link)
+			findBranches(link, master)
+		}
+
+	})
+}
+
+func getIndex() {
+	// f, err := fileName(website)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// log.Println(f)
+
+	err := writeToFile(website, "index.html")
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Done")
 	_ = findAllImages(website)
+}
+
+func main() {
+	getIndex()
+
+	findBranches(website, website)
 }
