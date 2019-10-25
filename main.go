@@ -61,11 +61,26 @@ func findAllImages(s string) error {
 	return nil
 }
 
+func checkDirs(s string) {
+	ufile, _ := url.Parse(s)
+	seg := strings.Split(ufile.Path, "/")
+	last := len(seg) - 1
+	if seg[len(seg)-1] == "" {
+		last = len(seg) - 2
+	}
+	dir := s[0 : len(s)-len(seg[last])]
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+	}
+}
+
 func downloadImage(w, s string) error {
+	f := s
+	checkDirs(f)
 	if s[:3] != "http" {
 		s = w + s
 	}
-	f, _ := fileName(s)
+	// f, _ := fileName(s)
 	writeToFile(s, f)
 	return nil
 }
