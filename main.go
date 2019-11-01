@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +15,7 @@ var website = "https://web.archive.org/web/20100528035641im_/http://www.mscd.edu
 
 // var file = "abc.html"
 
+// writeToFile writes a specific URL to a specified file
 func writeToFile(s, file string) error {
 	res, err := http.Get(s)
 	if err != nil {
@@ -36,8 +36,7 @@ func writeToFile(s, file string) error {
 	return nil
 }
 
-func findAllImages(s string) error {
-	// Make HTTP request
+func getStyle(s string) {
 	response, err := http.Get(s)
 	if err != nil {
 		log.Fatal(err)
@@ -50,17 +49,42 @@ func findAllImages(s string) error {
 		log.Fatal("Error loading HTTP response body. ", err)
 	}
 
-	// Find and print image URLs
+	// Find and download image URLs
+	document.Find("link").Each(func(index int, element *goquery.Selection) {
+		lnkSrc, exists := element.Attr("href")
+		if exists {
+			downloadImage(s, lnkSrc)
+		}
+	})
+}
+
+// findAllImages searches a webpage for all img tags
+// it then downloads all of the images
+func findAllImages(s string) error {
+	// Make HTTP request
+	response, err := http.Get(s)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	// Create a goquery document from the HTTP response
+	document, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		return err
+	}
+
+	// Find and download image URLs
 	document.Find("img").Each(func(index int, element *goquery.Selection) {
 		imgSrc, exists := element.Attr("src")
 		if exists {
-			fmt.Printf("Downloading %s\n", imgSrc)
-			downloadImage(s, imgSrc)
+			downloadImage(website, imgSrc)
 		}
 	})
 	return nil
 }
 
+// Creates directories needed for files in none exist
 func checkDirs(s string) {
 	ufile, _ := url.Parse(s)
 	seg := strings.Split(ufile.Path, "/")
@@ -81,7 +105,10 @@ func downloadImage(w, s string) error {
 		s = w + s
 	}
 	// f, _ := fileName(s)
-	writeToFile(s, f)
+	e := writeToFile(s, f)
+	if e != nil {
+		return e
+	}
 	return nil
 }
 
@@ -106,30 +133,32 @@ func makeFile(s string) (*os.File, error) {
 	return file, nil
 }
 
+// Finds all children links
 func findBranches(s, master string) {
 	doc, _ := goquery.NewDocument(s)
 	doc.Find("a[href]").Each(func(index int, item *goquery.Selection) {
 		href, _ := item.Attr("href")
-		if _, err := os.Stat(href); os.IsNotExist(err) {
-
+		// ensures not writing same file multiple times
+		if _, err := os.Stat(href); os.IsNotExist(err) && (len(href) < 3 || "http" != href[0:4]) {
 			link := master + href
 			// f, err := fileName(website)
 			// if err != nil {
 			// 	log.Fatal(err)
 			// }
-			log.Printf("Downloading %s into file %s\n", link, href)
 			err := writeToFile(link, href)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
-			log.Println("Finished")
-			_ = findAllImages(link)
-			findBranches(link, master)
+			if err == nil {
+				_ = findAllImages(link)
+				findBranches(link, master)
+			}
 		}
 
 	})
 }
 
+// starting place!
 func getIndex() {
 	// f, err := fileName(website)
 	// if err != nil {
@@ -141,12 +170,11 @@ func getIndex() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Done")
 	_ = findAllImages(website)
 }
 
 func main() {
 	getIndex()
-
+	getStyle(website)
 	findBranches(website, website)
 }
